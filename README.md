@@ -1,26 +1,12 @@
-# CUDA-Streams-and-Concurrency
+# CUDA Streams and Concurrency
 
 I built a serial and a stream based version of the same GPU workload to measure whether overlapping data transfer with computation actually produces observable concurrency, not just theoretical concurrency. This project documents the process: writing both versions, profiling each with Nsight Systems, and proving the difference with real timestamps rather than just describing what streams are supposed to do.
 
 **Result: the serial version issues each operation roughly 1.2 to 1.5 milliseconds apart, waiting for the previous one to fully complete first. The streamed version issues operations only microseconds apart, confirming genuine overlap rather than hidden serialization.**
 
-## Why I built this
-
-Nsight Systems is the tool I would reach for to answer "is this GPU actually idle waiting on the host, or is work genuinely overlapping." That question comes up constantly in distributed and multi-stage GPU workloads, and I wanted direct, hands on evidence of what overlap looks like in a profiler, on a system small enough that I fully control every variable.
-
 ## Architecture
 
-```
-CUDA workload (8 chunks, pinned host memory)
-       |
-       v
-Serial version        — cudaMemcpy (blocking), one chunk fully completes before the next starts
-       |
-Streamed version       — cudaMemcpyAsync + per chunk CUDA streams, operations issued without waiting
-       |
-       v
-Nsight Systems         — Timeline View and CUDA API Summary confirm actual overlap versus sequencing
-```
+![CUDA streams and concurrency architecture](assets/cuda_streams_architecture.png)
 
 Both versions run the identical kernel. The kernel performs artificial, non meaningful arithmetic solely to create measurable execution time for profiling, it is a controlled test harness, not a real computational workload. The only difference between the two versions is entirely in how the host issues and schedules the copy and compute operations, not in what the GPU actually computes.
 
@@ -36,7 +22,17 @@ I profiled both versions with Nsight Systems, then used the CUDA API Summary vie
 
 ### Serial vs streamed timeline
 
-<!-- Add Timeline View screenshots here: serial shows a staircase of sequential blocks, streamed shows compressed, overlapping blocks -->
+| Serial | Streamed |
+|---|---|
+| ![Serial timeline, sequential blocks](assets/serial_timeline_summary.png) | ![Streamed timeline, overlapping blocks](assets/streamed_timeline_summary.png) |
+
+The serial timeline shows individual `cudaMemcpy` calls laid out end to end, each one starting only after the previous one finishes. The streamed timeline shows `cudaMemcpyAsync` and `cudaLaunchKernel` compressed into a tight, overlapping cluster, followed by a single `cudaDeviceSynchronize` that blocks until all queued work across every stream actually completes.
+
+### Full run overview and raw events
+
+| Serial | Streamed |
+|---|---|
+| ![Serial events overview](assets/serial_events_overview.png) | ![Streamed events overview](assets/streamed_events_overview.png) |
 
 ### CUDA API Summary comparison
 
