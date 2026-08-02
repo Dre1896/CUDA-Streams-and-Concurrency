@@ -1,4 +1,7 @@
 # CUDA Streams and Concurrency
+<h1 align="center">
+<img src="assets/banner.png">
+</h1> 
 
 I built a serial and a stream based version of the same GPU workload to measure whether overlapping data transfer with computation actually produces observable concurrency, not just theoretical concurrency. This project documents the process: writing both versions, profiling each with Nsight Systems, and proving the difference with real timestamps rather than just describing what streams are supposed to do.
 
